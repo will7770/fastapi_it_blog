@@ -1,0 +1,49 @@
+from ..core import Base
+from datetime import datetime
+from enum import Enum, StrEnum
+from typing import Optional, List, Annotated
+from sqlalchemy import Uuid, String, Text, Boolean, DateTime, ForeignKey, UniqueConstraint, Index, func, Enum as SQLEnum, LargeBinary, Integer
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.dialects.postgresql import JSONB
+
+
+
+created_at = Annotated[
+    datetime,
+    mapped_column(
+        DateTime,
+        server_default=func.now(),
+        init=False
+    )
+]
+
+updated_at = Annotated[
+    datetime,
+    mapped_column(
+        DateTime,
+        server_default=func.now(),
+        onupdate=func.now(),
+        init=False
+    )
+]
+
+class PostStatus(StrEnum):
+    DRAFT = 'draft'
+    PUBLIC = 'public'
+    ARCHIVED = 'archived'
+
+class Post(Base):
+    __tablename__ = 'posts'
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    author_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    title: Mapped[str] = mapped_column(String(50), nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    published_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[created_at]
+    updated_at: Mapped[updated_at]
+
+    author: Mapped["User"] = relationship(back_populates="posts")
+
+    view_count: Mapped[int] = mapped_column(Integer, default=0)
+    status: Mapped[PostStatus] = mapped_column(SQLEnum(PostStatus), default=PostStatus.DRAFT)
