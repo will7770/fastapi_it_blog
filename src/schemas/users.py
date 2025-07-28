@@ -44,12 +44,16 @@ class UserRead(BaseModel):
         from_attributes = True
 
 
-class UserUpdate(BaseModel):
+class UserUpdateInitial(BaseModel):
     first_name: Optional[str] = None
     last_name: Optional[str] = None
     bio: Optional[str] = None
     occupation: Optional[str] = None
     occupation_grade: Optional[OccupationGrades] = None
+
+class UserUpdateFinal(UserUpdateInitial):
+    id: int = Field(...)
+
 
 class UserDelete(BaseModel):
     id: int = Field(...)

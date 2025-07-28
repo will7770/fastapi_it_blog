@@ -49,6 +49,7 @@ class User(Base):
 
     # relationships
     posts: Mapped[List["Post"]] = relationship(back_populates="author")
+    votes: Mapped[List["Vote"]] = relationship(back_populates="user")
 
     # Required fields with defaults
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())

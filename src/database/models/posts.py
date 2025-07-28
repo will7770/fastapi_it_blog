@@ -44,6 +44,24 @@ class Post(Base):
     updated_at: Mapped[updated_at]
 
     author: Mapped["User"] = relationship(back_populates="posts")
+    votes: Mapped["Vote"] = relationship(back_populates="post")
 
+    rating: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     view_count: Mapped[int] = mapped_column(Integer, default=0)
     status: Mapped[PostStatus] = mapped_column(SQLEnum(PostStatus), default=PostStatus.DRAFT)
+
+
+class Vote(Base):
+    __tablename__ = 'votes'
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    author_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    post_id: Mapped[int] = mapped_column(ForeignKey("posts.id", ondelete="CASCADE"))
+    value: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    user: Mapped["User"] = relationship(back_populates="votes")
+    post: Mapped["Post"] = relationship(back_populates="votes")
+
+    __table_args__ = (
+        UniqueConstraint('author_id', 'post_id', name='_user_post_uc'),
+    )

@@ -58,7 +58,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme), session: AsyncSe
                                         headers={"WWW-Authenticate": "Bearer"})
     try:
         payload = jwt.decode(token, secret_key, algorithms=[algorithm])
-        username = payload.get("username")
+        username = payload.get("sub")
         if not username:
             raise invalid_credentials
     except JWTError:
