@@ -2,9 +2,12 @@ from ..core import Base
 from datetime import datetime
 from enum import Enum, StrEnum
 from typing import Optional, List, Annotated
-from sqlalchemy import Uuid, String, Text, Boolean, DateTime, ForeignKey, UniqueConstraint, Index, func, Enum as SQLEnum, LargeBinary, Integer
+from sqlalchemy import (Uuid, String, Text, Boolean, DateTime, ForeignKey, UniqueConstraint, Index, func, Enum as SQLEnum,
+                        LargeBinary, Integer)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import JSONB
+from src.database.models.users import bookmark_table
+from src.database.models.tags import tags_to_posts
 
 
 
@@ -43,12 +46,26 @@ class Post(Base):
     created_at: Mapped[created_at]
     updated_at: Mapped[updated_at]
 
+    tags: Mapped[list["Tags"]] = relationship(
+        secondary=tags_to_posts,
+        back_populates="post_tags",
+        lazy='joined'
+    )
+    bookmarked_by: Mapped[list["User"]] = relationship(
+        secondary=bookmark_table,
+        back_populates="bookmarks",
+        lazy='raise'
+    )
+    comments: Mapped[list["Comment"]] = relationship(back_populates="post", lazy='joined')
     author: Mapped["User"] = relationship(back_populates="posts")
     votes: Mapped["Vote"] = relationship(back_populates="post")
 
     rating: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     view_count: Mapped[int] = mapped_column(Integer, default=0)
     status: Mapped[PostStatus] = mapped_column(SQLEnum(PostStatus), default=PostStatus.DRAFT)
+
+    def __repr__(self):
+        return f"Id: {self.id} | Author: {self.author_id} | Title: {self.title}"
 
 
 class Vote(Base):

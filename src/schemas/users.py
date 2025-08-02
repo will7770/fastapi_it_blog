@@ -2,7 +2,7 @@ from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
 from enum import StrEnum
 from datetime import datetime
-
+from .posts import PostRead, Tag
 
 
 
@@ -11,6 +11,7 @@ class Roles(StrEnum):
     MODERATOR = 'moderator'
     ADMIN = 'admin'
 
+
 class OccupationGrades(StrEnum):
     TRAINEE = 'trainee'
     JUNIOR = 'junior'
@@ -18,10 +19,12 @@ class OccupationGrades(StrEnum):
     SENIOR = 'senior'
     LEAD = 'lead'
 
+
 class UserCreate(BaseModel):
     username: str = Field(..., min_length=4, max_length=25)
     email: EmailStr
     password: str = Field(...)
+
 
 class UserRead(BaseModel):
     id: int
@@ -42,6 +45,11 @@ class UserRead(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class Profile(UserRead):
+    bookmarks: list[PostRead] = []
+    favorite_tags: list[Tag] = []
 
 
 class UserUpdateInitial(BaseModel):

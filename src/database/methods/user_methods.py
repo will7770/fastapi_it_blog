@@ -1,17 +1,19 @@
 from fastapi import HTTPException
+from sqlalchemy.orm import joinedload
+
 from src.database.models import Post
 from src.schemas.posts import PostRead
-from src.schemas.users import UserRead, UserCreate, UserUpdateFinal
+from src.schemas.users import UserRead, UserCreate, UserUpdateFinal, Profile
 from src.database.models import User
-from sqlalchemy import select, update, delete, Result
+from sqlalchemy import select, update, delete
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import Optional, Any, Coroutine
 
 
 
 class UserService():
     def __init__(self, session: AsyncSession):
         self.session = session
+
 
     async def create(self, user_data: UserCreate) -> UserRead:
         async with self.session.begin():
@@ -26,6 +28,7 @@ class UserService():
             await self.session.refresh(new_user)
 
             return UserRead.model_validate(new_user)
+
 
     async def get(self, by_id: int = None, by_username: str = None, return_raw: bool = False) -> UserRead | User:
         if not by_id and not by_username:
@@ -47,6 +50,7 @@ class UserService():
 
         return UserRead.model_validate(user)
 
+
     async def update(self, update_data: UserUpdateFinal) -> UserRead:
             user_exists = await self.session.scalar(select(User.id).where(User.id==update_data.id))
             if not user_exists:
@@ -62,6 +66,7 @@ class UserService():
 
             return UserRead.model_validate(updated_user)
 
+
     async def delete(self, id: int, password: str) -> bool:
         async with self.session.begin():
             user = await self.session.scalar(select(User).where(User.id==id))
@@ -72,9 +77,31 @@ class UserService():
             query = delete(User).where(User.id==id)
             result = await self.session.execute(query)
 
+            await self.session.commit()
+
             return result.rowcount > 0
 
+
+    async def add_tag_to_favorites(self, user_id: int, tags: list) -> bool:
+        stmt = select(User).where(User.id==user_id).options(joinedload(User.favorite_tags))
+        user = (await self.session.scalars(stmt)).first()
+
+        if not user:
+            raise HTTPException(status_code=404, detail="User doesnt exist")
+
+        user.favorite_tags = tags
+        await self.session.commit()
+
+        return True
+
     async def user_posts(self, user_id: int) -> list[PostRead]:
-        stmt = select(Post).where(Post.author_id==user_id)
-        posts = await self.session.scalars(stmt)
+        stmt = await self.session.scalars(select(Post).where(Post.author_id==user_id).options(joinedload(Post.comments)))
+        posts = stmt.unique().all()
         return [PostRead.model_validate(post) for post in posts]
+
+
+    async def profile(self, user_id: int) -> Profile:
+        stmt = await self.session.scalars(select(User).where(User.id==user_id).options(joinedload(User.bookmarks), joinedload(User.favorite_tags)))
+        result = stmt.first()
+
+        return Profile.model_validate(result)

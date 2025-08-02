@@ -2,9 +2,11 @@ from ..core import Base
 from datetime import datetime
 from enum import Enum, StrEnum
 from typing import Optional, List, Annotated
-from sqlalchemy import Uuid, String, Text, Boolean, DateTime, ForeignKey, UniqueConstraint, Index, func, Enum as SQLEnum, LargeBinary, Integer
+from sqlalchemy import (Uuid, String, Text, Boolean, DateTime, ForeignKey, UniqueConstraint,
+                        Index, func, Enum as SQLEnum, LargeBinary, Integer, Table, Column)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import JSONB
+from src.database.models.tags import tags_to_users
 
 
 
@@ -30,6 +32,14 @@ class OccupationGrades(StrEnum):
     LEAD = 'lead'
 
 
+bookmark_table = Table(
+    "bookmarks",
+    Base.metadata,
+    Column("user_id", ForeignKey("users.id"), primary_key=True),
+    Column("post_id", ForeignKey("posts.id"), primary_key=True)
+)
+
+
 class User(Base):
     __tablename__ = "users"
 
@@ -48,12 +58,22 @@ class User(Base):
     last_login: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
     # relationships
-    posts: Mapped[List["Post"]] = relationship(back_populates="author")
-    votes: Mapped[List["Vote"]] = relationship(back_populates="user")
+    bookmarks: Mapped[list["Post"]] = relationship(
+        secondary=bookmark_table,
+        back_populates="bookmarked_by",
+        lazy='raise'
+    )
+    comments: Mapped[list["Comment"]] = relationship(back_populates="author")
+    posts: Mapped[list["Post"]] = relationship(back_populates="author")
+    votes: Mapped[list["Vote"]] = relationship(back_populates="user")
+    favorite_tags: Mapped[list["Tags"]] = relationship(back_populates="favorited_by", secondary=tags_to_users, lazy='selectin')
+
 
     # Required fields with defaults
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     is_verified: Mapped[bool] = mapped_column(Boolean, default=False)
     role: Mapped[Roles] = mapped_column(SQLEnum(Roles), default=Roles.USER)
 
+    def __repr__(self):
+        return f"Id: {self.id} | Username: {self.username} | Email: {self.email}"
 
