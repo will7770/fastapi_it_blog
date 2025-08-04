@@ -99,7 +99,7 @@ async def get_current_user(request: Request, session: AsyncSession = Depends(get
         raise HTTPException(status_code=401, detail="Not authenticated")
 
     if refresh_token and not access_token:
-        url = request.url_for("refresh_token")
+        url = request.url.path
         raise HTTPException(
             status_code=status.HTTP_307_TEMPORARY_REDIRECT,
             headers={"Location": f"/user/refresh/?redirect_url={url}"}
@@ -125,6 +125,11 @@ async def get_current_user(request: Request, session: AsyncSession = Depends(get
 async def get_active_user(user: Annotated[User, Depends(get_current_user)]):
     return user
 
+
+async def mod_access(user: Annotated[User, Depends(get_current_user)]):
+    if user.role == Roles.MODERATOR or user.role == Roles.ADMIN:
+        return True
+    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="No access")
 
 async def admin_access(user: Annotated[User, Depends(get_current_user)]):
     if user.role == Roles.ADMIN:

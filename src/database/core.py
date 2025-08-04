@@ -1,8 +1,6 @@
 from contextlib import asynccontextmanager
-from typing import Annotated
-
 from dotenv import load_dotenv
-from fastapi import Depends
+from sqlalchemy.pool import NullPool
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase, MappedAsDataclass
 import os
@@ -15,7 +13,7 @@ DATABASE_URL = os.getenv("DB_URL")
 engine = create_async_engine(
     DATABASE_URL,
     echo=True,
-    future=True
+    future=True,
 )
 
 sessions = async_sessionmaker(bind=engine, expire_on_commit=False, class_=AsyncSession)
