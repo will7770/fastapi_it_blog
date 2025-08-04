@@ -1,9 +1,16 @@
+from contextlib import asynccontextmanager
+from typing import Annotated
+
+from dotenv import load_dotenv
+from fastapi import Depends
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase, MappedAsDataclass
+import os
 
 
+load_dotenv()
 
-DATABASE_URL = "postgresql+asyncpg://blog_admin:1029384756@localhost:5432/fastapi_blog"
+DATABASE_URL = os.getenv("DB_URL")
 
 engine = create_async_engine(
     DATABASE_URL,
@@ -13,9 +20,17 @@ engine = create_async_engine(
 
 sessions = async_sessionmaker(bind=engine, expire_on_commit=False, class_=AsyncSession)
 
-async def get_session():
+@asynccontextmanager
+async def get_db():
     async with sessions() as session:
         yield session
+
+async def get_session():
+    async with sessions() as session:
+        try:
+            yield session
+        finally:
+            await session.close()
 
 
 

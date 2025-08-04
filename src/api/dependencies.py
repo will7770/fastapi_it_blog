@@ -1,12 +1,16 @@
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Annotated
 import os
-from fastapi import Depends, HTTPException, status
+
+from cryptography.hazmat.primitives.asymmetric.utils import encode_dss_signature
+from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from sqlalchemy.ext.asyncio import AsyncSession
 from dotenv import load_dotenv
+from starlette.responses import RedirectResponse
+
 from src.database.methods.user_methods import UserService
 from src.database.core import get_session
 from src.database.models.users import User, Roles
@@ -23,7 +27,6 @@ refresh_token_expire = os.getenv("REFRESH_TOKEN_EXPIRE_DAYS")
 algorithm = os.getenv("ALGORITHM")
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/user/token/")
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -80,7 +83,6 @@ def decode_and_verify_refresh_token(token: str):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
     )
 
     payload = jwt.decode(token, secret_key, algorithms=[algorithm])
@@ -89,22 +91,35 @@ def decode_and_verify_refresh_token(token: str):
     return payload
 
 
-async def get_current_user(token: str = Depends(oauth2_scheme), session: AsyncSession = Depends(get_session)):
-    invalid_credentials = HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
-                                        detail="Invalid credentials",
-                                        headers={"WWW-Authenticate": "Bearer"})
-    try:
-        payload = jwt.decode(token, secret_key, algorithms=[algorithm])
-        username = payload.get("sub")
-        if not username:
-            raise invalid_credentials
-    except JWTError:
-        raise invalid_credentials
-    service = UserService(session)
-    user = await service.get(by_username=username, return_raw=True)
-    if not user:
-        raise invalid_credentials
-    return user
+async def get_current_user(request: Request, session: AsyncSession = Depends(get_session)):
+    access_token = request.cookies.get("access_token")
+    refresh_token = request.cookies.get("refresh_token")
+
+    if not access_token and not refresh_token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    if refresh_token and not access_token:
+        url = request.url_for("refresh_token")
+        raise HTTPException(
+            status_code=status.HTTP_307_TEMPORARY_REDIRECT,
+            headers={"Location": f"/user/refresh/?redirect_url={url}"}
+        )
+
+    decoded_access_token = jwt.decode(access_token, secret_key, algorithms=[algorithm])
+    decoded_refresh_token = jwt.decode(refresh_token, secret_key, algorithms=[algorithm])
+    if not decoded_access_token and not decoded_refresh_token:
+        raise HTTPException(status_code=401, detail="Invalid tokens")
+
+    username = decoded_access_token.get("sub")
+    if not username:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+
+    async with session as session:
+        serivce = UserService(session)
+        user =  await serivce.get(by_username=username, return_raw=True)
+        if not user:
+            raise HTTPException(status_code=401, detail="User does not exist")
+        return user
 
 
 async def get_active_user(user: Annotated[User, Depends(get_current_user)]):

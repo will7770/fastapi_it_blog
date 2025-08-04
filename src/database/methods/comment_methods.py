@@ -1,11 +1,6 @@
-from datetime import datetime, timezone
 from fastapi import HTTPException, status
-
 from ..models import Comment
 from ..models.posts import Post, PostStatus, Vote
-from ..models.users import User
-from src.schemas.posts import PostCreateFinal, PostRead, PostUpdateFinal, PostStatus, PostDeleteFinal, RatePostFinal, \
-    DeletePostRatingFinal
 from sqlalchemy import select, update, delete, Result, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from ...schemas.comments import CreateCommentFinal, CommentRead, DeleteCommentFinal

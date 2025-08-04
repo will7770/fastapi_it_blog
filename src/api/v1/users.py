@@ -1,8 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request, Response, Form
 from fastapi.security import OAuth2PasswordRequestForm
 from passlib.context import CryptContext
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Annotated
+
+from starlette.responses import RedirectResponse
+
 from src.database.core import get_session
 from src.schemas.users import UserCreate, UserRead, UserUpdateFinal, UserDelete, UserUpdateInitial, Profile
 from src.database.methods.user_methods import UserService
@@ -18,17 +21,18 @@ from jose import jwt, JWTError
 router = APIRouter(prefix="/user", tags=["users"])
 
 
-@router.post("/refresh")
-async def refresh_token(token: str,
-                        session: Annotated[AsyncSession, Depends(get_session)]):
+@router.get("/refresh/")
+async def refresh_token(request: Request,
+                        session: Annotated[AsyncSession, Depends(get_session)],
+                        redirect_url: str):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
     )
     try:
+        token = request.cookies.get("refresh_token")
         payload = decode_and_verify_refresh_token(token)
-        username = payload.get('user')
+        username = payload.get('sub')
         if not username:
             raise credentials_exception
 
@@ -36,31 +40,77 @@ async def refresh_token(token: str,
         if not user:
             raise credentials_exception
 
+        response = RedirectResponse(redirect_url)
         access_token = create_access_token(data={"sub": username})
+        response.set_cookie(
+            key="access_token",
+            value=access_token,
+            httponly=True,
+            samesite="lax",
+            max_age=30 * 60
+        )
 
-        return {"access_token": access_token, 'token_type': 'bearer'}
+        return response
     except JWTError:
         raise credentials_exception
 
 
-@router.post("/token")
+@router.post("/register/")
+async def register(session: Annotated[AsyncSession, Depends(get_session)],
+                   user_data: UserCreate
+                   ):
+    service = UserService(session)
+    try:
+        user_exists = await service.create(user_data)
+        return user_exists
+    except ValueError as err:
+        raise HTTPException(status_code=400, detail=str(err))
+
+
+@router.post("/login")
 async def login_for_access_token(session: Annotated[AsyncSession, Depends(get_session)],
-                                 form_data: OAuth2PasswordRequestForm = Depends()):
-    user = await verify_user(form_data.username, form_data.password, session)
+                                 response: Response,
+                                 username: str = Form(...),
+                                 password: str = Form(...)):
+    user = await verify_user(username, password, session)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",
-            headers={"WWW-Authenticate": "Bearer"},
         )
 
     refesh_token = create_refresh_token(
         data={"sub": user.username}
     )
+    response.set_cookie(
+        key="refresh_token",
+        value=refesh_token,
+        httponly=True,
+        samesite="lax",
+        max_age=7*24*60*60,
+    )
+
     access_token = create_access_token(
         data={"sub": user.username}
     )
-    return {"access_token": access_token, "token_type": "bearer", "refresh_token": refesh_token}
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        httponly=True,
+        samesite="lax",
+        max_age=30*60
+    )
+
+    return {"access_token": access_token, "refresh_token": refesh_token}
+
+
+@router.post("/logout/", status_code=status.HTTP_200_OK)
+async def logout(response: Response,
+                 user: User = Depends(get_active_user)):
+    response.delete_cookie("access_token")
+    response.delete_cookie("refresh_token")
+
+    return {"status": "logged out successfully"}
 
 
 @router.get("/profile/", response_model=Profile, status_code=status.HTTP_200_OK)

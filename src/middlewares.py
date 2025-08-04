@@ -1,6 +1,6 @@
 from fastapi import Request, HTTPException
 from fastapi.responses import JSONResponse
-from src.database.core import get_session
+from src.database.core import get_session, get_db
 from src.api.dependencies import get_current_user, admin_access
 
 
@@ -8,17 +8,16 @@ async def admin_protection_middleware(request: Request, call_next):
     if not request.url.path.startswith("/admin"):
         return await call_next(request)
 
-    auth_header = request.headers.get("Authorization")
-    if not auth_header or not auth_header.startswith("Bearer "):
+    token = request.cookies.get("access_token")
+    if not token:
         return JSONResponse(
             {"detail": "Missing authorization token"},
             status_code=401
         )
 
     try:
-        token = auth_header.split(" ")[1]
-        async with get_session() as session:
-            user = await get_current_user(token=token, session=session)
+        async with get_db() as session:
+            user = await get_current_user(request, session=session)
             is_admin = await admin_access(user=user)
 
             if not is_admin:
@@ -26,7 +25,7 @@ async def admin_protection_middleware(request: Request, call_next):
                     status_code=403,
                     detail="Admin access required"
                 )
-            return await call_next(request)
+        return await call_next(request)
 
     except HTTPException as e:
         return JSONResponse(
