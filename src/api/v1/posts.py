@@ -151,4 +151,4 @@ async def bookmarks(session: Annotated[AsyncSession, Depends(get_session)],
 @router.get("/all_tags/", status_code=status.HTTP_200_OK)
 async def all_tags(session: Annotated[AsyncSession, Depends(get_session)]):
     service = PostService(session)
-    return await service.get_all_tags()
+    return await service._get_all_tags()

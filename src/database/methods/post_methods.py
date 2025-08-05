@@ -18,6 +18,7 @@ class PostService():
 
 
     async def create_post(self, post_data: PostCreateFinal) -> PostRead:
+        """Create a post and return it"""
         user_exists = await self.session.scalar(select(User).where(User.id==post_data.author_id))
         if not user_exists:
             raise ValueError(f"User {post_data.author_id} doesnt exist")
@@ -37,6 +38,11 @@ class PostService():
 
 
     async def search_post(self, query: str) -> list[PostRead]:
+        """
+        Search for query matches in post title and content
+        :param query: str to match with title and/or content
+        :return: list of validated posts
+        """
         stmt = (select(Post).options(joinedload(Post.comments))
                 .where(Post.status==PostStatus.PUBLIC)
                 .where(func.to_tsvector("simple", Post.title + " " + Post.content)
@@ -52,6 +58,13 @@ class PostService():
     async def get_posts(self, id: int = None,
                         tags: list = None,
                         order: Literal['newest', 'oldest'] = None) -> list[PostRead]:
+        """
+        Get a list of posts by args
+        :param id: returns a list of 1 post with exact id match
+        :param tags: returns posts with matching tags
+        :param order: orders the posts by time
+        :return: list of validated posts
+        """
         stmt = select(Post).options(joinedload(Post.comments))
         if id:
             stmt = stmt.where(Post.id==id)
@@ -70,6 +83,7 @@ class PostService():
 
 
     async def update_post(self, update_data: PostUpdateFinal) -> PostRead:
+        """Update the post if user matches the author"""
         data = update_data.model_dump(exclude={'id', 'author_id', 'tags'}, exclude_unset=True)
         if not data:
             raise ValueError("No fields to update")
@@ -99,6 +113,7 @@ class PostService():
 
 
     async def delete_post(self, post_data: PostDeleteFinal) -> bool:
+        """Delete the post if user matches the author"""
         post = await self.session.get(Post, post_data.id)
         if not post:
             raise ValueError("Post doesnt exist")
@@ -113,6 +128,10 @@ class PostService():
 
 
     async def rate_post(self, rating_data: RatePostFinal) -> dict[str: int]:
+        """
+        Rate the post and create a new entry in db for the rating
+        :return: new post rating
+        """
         post = await self.session.get(Post, rating_data.post_id)
 
         if not post:
@@ -137,6 +156,10 @@ class PostService():
 
 
     async def delete_rating(self, change_data: DeletePostRatingFinal) -> dict[str: int]:
+        """
+        Delete the rating from post and its entry in db
+        :return: new post rating
+        """
         post = await self.session.get(Post, change_data.post_id)
 
         if not post:
@@ -160,6 +183,10 @@ class PostService():
 
 
     async def bookmark_post(self, user_id: int, post_id: int) -> dict[str: str]:
+        """
+        Add a post to user's bookmarks
+        :return: dict with operation's status
+        """
         post = await self.session.get(Post, post_id)
         if not post:
             raise ValueError("Post doesnt exist")
@@ -179,7 +206,8 @@ class PostService():
         return {"status": "added"}
 
 
-    async def get_all_tags(self) -> list[Tag]:
+    async def _get_all_tags(self) -> list[Tag]:
+        """Utility for viewing all existing tags"""
         tags = (await self.session.scalars(select(Tags))).all()
 
         return [Tag.model_validate(tag) for tag in tags]

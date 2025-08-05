@@ -5,6 +5,7 @@ from src.api.dependencies import get_current_user, mod_access
 
 
 async def admin_protection_middleware(request: Request, call_next):
+    """ Middleware for locking endpoints only to users with moderator+ access """
     if not request.url.path.startswith("/admin"):
         return await call_next(request)
 

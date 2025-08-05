@@ -44,7 +44,7 @@ def run_migrations_offline() -> None:
     script output.
 
     """
-    url = f"postgres://{db_user}:{db_password}@{host}:5432/{db}"
+    url = f"postgresql://{db_user}:{db_password}@{host}:5432/{db}"
     #url = config.get_main_option("sqlalchemy.url")
     context.configure(
         url=url,
@@ -69,7 +69,7 @@ def run_migrations_online() -> None:
     #     prefix="sqlalchemy.",
     #     poolclass=pool.NullPool,
     # )
-    url = f"postgres://{db_user}:{db_password}@{host}:5432/{db}"
+    url = f"postgresql://{db_user}:{db_password}@{host}:5432/{db}"
     connectable = create_engine(
         url,
         poolclass=pool.NullPool
