@@ -37,39 +37,31 @@ class PostService():
         return PostRead.model_validate(new_post)
 
 
-    async def search_post(self, query: str) -> list[PostRead]:
-        """
-        Search for query matches in post title and content
-        :param query: str to match with title and/or content
-        :return: list of validated posts
-        """
-        stmt = (select(Post).options(joinedload(Post.comments))
-                .where(Post.status==PostStatus.PUBLIC)
-                .where(func.to_tsvector("simple", Post.title + " " + Post.content)
-                .op("@@")(func.plainto_tsquery("simple", query))))
-
-        results = await self.session.execute(stmt)
-        results = results.scalars().unique().all()
-
-
-        return [PostRead.model_validate(result) for result in results]
-
-
     async def get_posts(self, id: int = None,
                         tags: list = None,
+                        search_query: str = None,
                         order: Literal['newest', 'oldest'] = None) -> list[PostRead]:
         """
         Get a list of posts by args
         :param id: returns a list of 1 post with exact id match
         :param tags: returns posts with matching tags
         :param order: orders the posts by time
+        :param search_query: str to match with title
         :return: list of validated posts
         """
         stmt = select(Post).options(joinedload(Post.comments))
+
         if id:
             stmt = stmt.where(Post.id==id)
+
         if tags:
             stmt = stmt.where(Post.tags.any(Tags.name.in_(tags)))
+
+        if search_query:
+            stmt = (stmt.where(Post.status==PostStatus.PUBLIC)
+                .where(func.to_tsvector("simple", Post.title + " " + Post.content)
+                .op("@@")(func.plainto_tsquery("simple", search_query))))
+
         if order:
             if order == 'newest':
                 stmt = stmt.order_by(Post.published_at.desc())

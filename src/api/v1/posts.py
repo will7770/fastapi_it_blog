@@ -1,6 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Body, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Annotated, Optional
+
+from starlette.requests import Request
+
 from src.database.core import get_session
 from src.schemas.posts import PostCreateInitial, PostCreateFinal, PostRead, PostUpdateInitial, \
     PostUpdateFinal, PostDeleteInitial, PostDeleteFinal, RatePostInitial, RatePostFinal, DeletePostRatingFinal, \
@@ -8,6 +11,7 @@ from src.schemas.posts import PostCreateInitial, PostCreateFinal, PostRead, Post
 from src.database.methods.post_methods import PostService
 from ..dependencies import get_active_user, verify_tags_and_convert
 from src.database.models.users import User
+from src.cache.redis_utils import generate_cache_key, get_cache, set_cache
 
 
 router = APIRouter(prefix="/posts", tags=["posts"])
@@ -35,27 +39,24 @@ async def create_post(post_data: PostCreateInitial,
         raise HTTPException(status_code=400, detail=str(err))
 
 
-@router.get("/post/", status_code=status.HTTP_200_OK)
+@router.get("/get_posts/", status_code=status.HTTP_200_OK, response_model=list[PostRead])
 async def get_post(session: Annotated[AsyncSession, Depends(get_session)],
+                   request: Request,
                    id: int = None,
-                   tags: Optional[list[str]] = Query([], alias="tag", example=["Python", "JavaScript"])):
+                   search_query: str = None,
+                   tags: Optional[list[str]] = Query([], alias="tag", example=["Python", "JavaScript"]),
+                   ):
+    key = generate_cache_key(request)
     try:
+        cache = await get_cache(key)
+        if cache:
+            return cache
         service = PostService(session)
-        post = await service.get_posts(id, tags)
+        post = await service.get_posts(id, tags, search_query)
+        await set_cache(key, post)
         return post
     except ValueError as err:
         raise HTTPException(status_code=400, detail=str(err))
-
-
-@router.get("/search/", response_model=list[PostRead], status_code=status.HTTP_200_OK)
-async def search_post(query: str,
-                      session: Annotated[AsyncSession, Depends(get_session)]):
-    service = PostService(session)
-    try:
-        posts = await service.search_post(query)
-        return posts
-    except ValueError as err:
-        raise HTTPException(status_code=204, detail=err)
 
 
 @router.patch("/update/", response_model=PostRead, status_code=status.HTTP_200_OK)
