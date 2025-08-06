@@ -1,10 +1,11 @@
 from fastapi import Request, HTTPException
 from fastapi.responses import JSONResponse
 from src.database.core import get_session, get_db
-from src.api.dependencies import get_current_user, admin_access
+from src.api.dependencies import get_current_user, mod_access
 
 
 async def admin_protection_middleware(request: Request, call_next):
+    """ Middleware for locking endpoints only to users with moderator+ access """
     if not request.url.path.startswith("/admin"):
         return await call_next(request)
 
@@ -18,9 +19,9 @@ async def admin_protection_middleware(request: Request, call_next):
     try:
         async with get_db() as session:
             user = await get_current_user(request, session=session)
-            is_admin = await admin_access(user=user)
+            is_mod_or_above = await mod_access(user=user)
 
-            if not is_admin:
+            if not is_mod_or_above:
                 raise HTTPException(
                     status_code=403,
                     detail="Admin access required"

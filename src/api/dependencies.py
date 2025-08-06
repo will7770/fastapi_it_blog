@@ -1,16 +1,13 @@
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Annotated
 import os
-
-from cryptography.hazmat.primitives.asymmetric.utils import encode_dss_signature
 from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 from sqlalchemy.ext.asyncio import AsyncSession
 from dotenv import load_dotenv
 from starlette.responses import RedirectResponse
-
+from ..utils import verify_password, hash_password
 from src.database.methods.user_methods import UserService
 from src.database.core import get_session
 from src.database.models.users import User, Roles
@@ -25,16 +22,6 @@ secret_key = os.getenv("SECRET_KEY")
 access_token_expire = os.getenv("ACCESS_TOKEN_EXPIRE_MINS")
 refresh_token_expire = os.getenv("REFRESH_TOKEN_EXPIRE_DAYS")
 algorithm = os.getenv("ALGORITHM")
-
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
-
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
-
-
-def hash_password(plain_password: str):
-    return pwd_context.hash(plain_password)
 
 
 async def verify_user(username: str, password: str, session: AsyncSession):
@@ -99,7 +86,7 @@ async def get_current_user(request: Request, session: AsyncSession = Depends(get
         raise HTTPException(status_code=401, detail="Not authenticated")
 
     if refresh_token and not access_token:
-        url = request.url_for("refresh_token")
+        url = request.url.path
         raise HTTPException(
             status_code=status.HTTP_307_TEMPORARY_REDIRECT,
             headers={"Location": f"/user/refresh/?redirect_url={url}"}
@@ -125,6 +112,11 @@ async def get_current_user(request: Request, session: AsyncSession = Depends(get
 async def get_active_user(user: Annotated[User, Depends(get_current_user)]):
     return user
 
+
+async def mod_access(user: Annotated[User, Depends(get_current_user)]):
+    if user.role == Roles.MODERATOR or user.role == Roles.ADMIN:
+        return True
+    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="No access")
 
 async def admin_access(user: Annotated[User, Depends(get_current_user)]):
     if user.role == Roles.ADMIN:

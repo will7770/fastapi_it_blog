@@ -12,6 +12,7 @@ class CommentService():
 
 
     async def create_comment(self, comment_data: CreateCommentFinal) -> CommentRead:
+        """ Create new comment and return it """
         post = await self.session.get(Post, comment_data.post_id)
         if not post:
             raise ValueError("Post doesnt exist")
@@ -32,6 +33,7 @@ class CommentService():
 
 
     async def delete_comment(self, delete_data: DeleteCommentFinal) -> bool:
+        """ Delete the comment if user from data matches the actual owner """
         comment = await self.session.get(Comment, delete_data.comment_id)
         if not comment:
             raise ValueError("Comment doesnt exist")

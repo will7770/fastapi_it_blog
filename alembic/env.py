@@ -1,9 +1,10 @@
 from logging.config import fileConfig
-
+import os
 from sqlalchemy import engine_from_config, create_engine
 from sqlalchemy import pool
 
 from alembic import context
+from sqlalchemy.ext.asyncio import AsyncEngine
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -26,6 +27,10 @@ target_metadata = Base.metadata
 # my_important_option = config.get_main_option("my_important_option")
 # ... etc.
 
+host = os.getenv("POSTGRES_HOST")
+db = os.getenv("POSTGRES_DB")
+db_user = os.getenv("POSTGRES_USER")
+db_password = os.getenv("POSTGRES_PASSWORD")
 
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode.
@@ -39,7 +44,7 @@ def run_migrations_offline() -> None:
     script output.
 
     """
-    url = "postgresql://blog_admin:1029384756@localhost:5432/fastapi_blog"
+    url = f"postgresql://{db_user}:{db_password}@{host}:5432/{db}"
     #url = config.get_main_option("sqlalchemy.url")
     context.configure(
         url=url,
@@ -64,7 +69,7 @@ def run_migrations_online() -> None:
     #     prefix="sqlalchemy.",
     #     poolclass=pool.NullPool,
     # )
-    url = "postgresql://blog_admin:1029384756@localhost:5432/fastapi_blog"
+    url = f"postgresql://{db_user}:{db_password}@{host}:5432/{db}"
     connectable = create_engine(
         url,
         poolclass=pool.NullPool
