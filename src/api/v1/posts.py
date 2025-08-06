@@ -1,9 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Body, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Annotated, Optional
-
 from starlette.requests import Request
-
 from src.database.core import get_session
 from src.schemas.posts import PostCreateInitial, PostCreateFinal, PostRead, PostUpdateInitial, \
     PostUpdateFinal, PostDeleteInitial, PostDeleteFinal, RatePostInitial, RatePostFinal, DeletePostRatingFinal, \
@@ -11,7 +9,7 @@ from src.schemas.posts import PostCreateInitial, PostCreateFinal, PostRead, Post
 from src.database.methods.post_methods import PostService
 from ..dependencies import get_active_user, verify_tags_and_convert
 from src.database.models.users import User
-from src.cache.redis_utils import generate_cache_key, get_cache, set_cache
+from src.cache.redis_utils import generate_cache_key, get_cache, set_cache, delete_caches
 
 
 router = APIRouter(prefix="/posts", tags=["posts"])
@@ -19,6 +17,7 @@ router = APIRouter(prefix="/posts", tags=["posts"])
 
 @router.post("/create/", response_model=PostRead, status_code=status.HTTP_201_CREATED)
 async def create_post(post_data: PostCreateInitial,
+                      request: Request,
                       session: Annotated[AsyncSession, Depends(get_session)],
                       user: User = Depends(get_active_user)):
     try:
@@ -34,6 +33,10 @@ async def create_post(post_data: PostCreateInitial,
 
         post_serve_data = PostCreateFinal(**data, author_id=author_id)
         post = await service.create_post(post_serve_data)
+
+        pattern = f"cache:{request.scope['router']}:*"
+        await delete_caches(pattern)
+
         return post
     except ValueError as err:
         raise HTTPException(status_code=400, detail=str(err))
@@ -61,8 +64,8 @@ async def get_post(session: Annotated[AsyncSession, Depends(get_session)],
 
 @router.patch("/update/", response_model=PostRead, status_code=status.HTTP_200_OK)
 async def update_post(update_data: PostUpdateInitial,
-                      session: Annotated[AsyncSession,
-                      Depends(get_session)],
+                      request: Request,
+                      session: Annotated[AsyncSession,Depends(get_session)],
                       user: User = Depends(get_active_user)):
     service = PostService(session)
     try:
@@ -74,8 +77,11 @@ async def update_post(update_data: PostUpdateInitial,
                 raise HTTPException(status_code=400, detail="Incorrect tags")
             data['tags'] = processed_tags
 
-
         new_data = PostUpdateFinal(**data, author_id=user_id)
+
+        pattern = f"cache:{request.scope['router']}:*"
+        await delete_caches(pattern)
+
         result = await service.update_post(new_data)
         return result
     except ValueError as err:
@@ -84,11 +90,16 @@ async def update_post(update_data: PostUpdateInitial,
 
 @router.delete("/delete/", status_code=status.HTTP_200_OK)
 async def delete_post(session: Annotated[AsyncSession, Depends(get_session)],
+                      request: Request,
                       delete_data: PostDeleteInitial,
                       user: User = Depends(get_active_user)):
     service = PostService(session)
     try:
         final_delete_data = PostDeleteFinal(id=delete_data.id, author_id=user.id)
+
+        pattern = f"cache:{request.scope['router']}:*"
+        await delete_caches(pattern)
+
         return await service.delete_post(final_delete_data)
     except ValueError as err:
         raise HTTPException(status_code=400, detail=err)

@@ -1,16 +1,13 @@
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Annotated
 import os
-
-from cryptography.hazmat.primitives.asymmetric.utils import encode_dss_signature
 from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 from sqlalchemy.ext.asyncio import AsyncSession
 from dotenv import load_dotenv
 from starlette.responses import RedirectResponse
-
+from ..utils import verify_password, hash_password
 from src.database.methods.user_methods import UserService
 from src.database.core import get_session
 from src.database.models.users import User, Roles
@@ -25,16 +22,6 @@ secret_key = os.getenv("SECRET_KEY")
 access_token_expire = os.getenv("ACCESS_TOKEN_EXPIRE_MINS")
 refresh_token_expire = os.getenv("REFRESH_TOKEN_EXPIRE_DAYS")
 algorithm = os.getenv("ALGORITHM")
-
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
-
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
-
-
-def hash_password(plain_password: str):
-    return pwd_context.hash(plain_password)
 
 
 async def verify_user(username: str, password: str, session: AsyncSession):

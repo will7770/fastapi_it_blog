@@ -25,7 +25,7 @@ class UserService():
         new_user = User(**values)
 
         self.session.add(new_user)
-        await self.session.refresh(new_user)
+        await self.session.commit()
 
         return UserRead.model_validate(new_user)
 

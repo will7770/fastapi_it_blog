@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 import uvicorn
-from database.core import init_db
+from database.core import init_db, create_first_superuser
 from src.api.v1 import users, posts, comments
 from src.admin.setup import init_admin
 from src.database.core import engine
@@ -12,6 +12,7 @@ from src.cache.redis_config import r
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
+    await create_first_superuser()
     init_admin(app, engine)
     yield
     await r.close()

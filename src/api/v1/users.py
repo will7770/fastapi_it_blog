@@ -1,20 +1,16 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request, Response, Form
-from fastapi.security import OAuth2PasswordRequestForm
-from passlib.context import CryptContext
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Annotated
-
 from starlette.responses import RedirectResponse
-
 from src.database.core import get_session
 from src.schemas.users import UserCreate, UserRead, UserUpdateFinal, UserDelete, UserUpdateInitial, Profile
 from src.database.methods.user_methods import UserService
-from ..dependencies import hash_password, verify_user, create_access_token, verify_user_for_refresh, get_active_user, \
+from ..dependencies import verify_user, create_access_token, verify_user_for_refresh, get_active_user, \
     verify_tags_and_convert, create_refresh_token, decode_and_verify_refresh_token, admin_access
 from src.database.models.users import User
-from ...database.methods.post_methods import PostService
 from ...schemas.posts import PostRead
 from jose import jwt, JWTError
+from ...utils import hash_password
 
 
 
@@ -122,12 +118,36 @@ async def profile(session: Annotated[AsyncSession, Depends(get_session)],
 
 @router.post("/create/", response_model=UserRead, status_code=status.HTTP_201_CREATED)
 async def create_user(user_create: UserCreate,
+                      response: Response,
                       session: Annotated[AsyncSession, Depends(get_session)]):
     service = UserService(session)
     try:
         hashed_password = hash_password(user_create.password)
         user_create.password = hashed_password
-        return await service.create(user_create)
+        created_user = await service.create(user_create)
+
+        refesh_token = create_refresh_token(
+            data={"sub": created_user.username}
+        )
+        response.set_cookie(
+            key="refresh_token",
+            value=refesh_token,
+            httponly=True,
+            samesite="lax",
+            max_age=7 * 24 * 60 * 60,
+        )
+
+        access_token = create_access_token(
+            data={"sub": created_user.username}
+        )
+        response.set_cookie(
+            key="access_token",
+            value=access_token,
+            httponly=True,
+            samesite="lax",
+            max_age=30 * 60
+        )
+        return created_user
     except ValueError as err:
         raise HTTPException(status_code=400, detail=str(err))
 
